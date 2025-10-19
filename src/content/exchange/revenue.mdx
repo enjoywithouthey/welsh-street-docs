@@ -1,0 +1,209 @@
+import { Callout } from 'nextra/components'
+
+# Revenue Model & Fee Structure
+
+This section explains the three main fee mechanisms in the Welsh Street Exchange contract their settings, and security protections.
+
+## Revenue Types Overview
+
+The exchange implements three distinct fee mechanisms: **fee**, **revenue**, and **tax**. Each serves a different purpose and has different fund destinations to ensure proper protocol economics and security.
+
+### 1. Swap Fee Share
+
+**Purpose**: Shared trading fees that reward liquidity providers through the rewards contract.
+
+**Destination**: Transferred directly to the `.rewards` contract - inaccessible to deployer/treasury.
+
+**Implementation in Swaps**:
+
+```clarity
+(fee-a (/ (* amount-a (var-get fee)) BASIS))
+(fee-total (/ (* amount-a (+ (var-get fee) (var-get rev))) BASIS))
+
+;; Fee distribution in swap-a-b
+(if (> fee-total u0)
+    (begin
+        (try! (transformer .welshcorgicoin fee-a .rewards))  ;; Fee goes to rewards
+        (try! (contract-call? .rewards update-rewards-a fee-a))
+    ) true)
+```
+
+**Security**: These funds are permanently allocated to LP rewards and cannot be accessed by the treasury or contract owner.
+
+### 2. Revenue - Treasury Growth Fund
+
+**Purpose**: Protocol revenue for growth initiatives including buybacks, airdrops, and exchange listings.
+
+**Destination**: Transferred to the treasury address (initially `CONTRACT_OWNER`).
+
+**Treasury State Variables**:
+```clarity
+;; treasury account
+(define-data-var treasury-address principal CONTRACT_OWNER)
+(define-data-var treasury-locked bool false)
+```
+
+The treasury system is initialized with the contract deployer as the treasury address and an unlocked state, allowing for future security upgrades such transferring the treasury to a community multi-sig or a DAO controlled contact.
+
+**Implementation in Swaps**:
+```clarity
+(rev-a (/ (* amount-a (var-get rev)) BASIS))
+(treasury (var-get treasury-address))
+
+;; Revenue distribution in swap-a-b
+(if (> fee-total u0)
+    (begin
+        (try! (transformer .welshcorgicoin rev-a treasury))  ;; Revenue to treasury
+    ) true)
+```
+
+**Security Risk**: Since revenue goes to an address, private key compromise could lead to fund theft. The establishment of a multi-sig is the best way to guard against the unfortunate case of a private key exploit.
+
+The deployer contract and treasury address are controlled by two separate private keys to prevent this from happen.  The treasury address is only assign to the `CONTRACT_OWNER` at contract deployment and changed to a different private key shortly after deployment.
+
+(Transaction Record here.)[]
+
+**Mitigation**: Treasury address can be updated to a multi-signature wallet:
+```clarity
+(define-public (set-treasury-address (new-treasury principal))
+  (begin
+    (asserts! (is-eq (var-get treasury-address) tx-sender) ERR_NOT_TREASURY)
+    (if (var-get treasury-locked)
+        ERR_LOCKED_TREASURY
+        (begin
+          (var-set treasury-address new-treasury)
+          (ok new-treasury)
+        )
+    )
+  )
+)
+```
+
+**Permanent Lock**: Once migrated to multi-sig, the treasury can be permanently locked:
+```clarity
+(define-public (set-treasury-locked)
+  (begin
+    (asserts! (is-eq (var-get treasury-address) tx-sender) ERR_NOT_TREASURY)
+    (if (var-get treasury-locked)
+        ERR_LOCKED_TREASURY
+        (begin
+          (var-set treasury-locked true)  ;; Prevents future changes
+          (ok true)
+        )
+    )
+  )
+)
+```
+
+### 3. Tax - Permanent Liquidity Lock
+
+**Purpose**: Exit tax on liquidity removal that permanently increases protocol reserves.  The exit tax is a thank you from the community for participating in the Welsh Street Exchange project.  HTe small tax remains as permanently locked liquidity to benefit the project and community forever.
+
+<Callout>*Nothing is as certain as death, taxes and Welsh going to the moon. -Benjamin Franklin*</Callout>
+
+**Destination**: Locked within the exchange contract - **cannot be withdrawn by anyone**.
+
+**Implementation in Liquidity Removal**:
+```clarity
+(define-public (remove-liquidity (amount-lp uint))
+  (let (
+    (amount-a (/ (* amount-lp aval-a) total-supply-lp))
+    (amount-b (/ (* amount-lp aval-b) total-supply-lp))
+    (tax-a (/ (* amount-a (var-get tax)) BASIS))        ;; Calculate tax
+    (tax-b (/ (* amount-b (var-get tax)) BASIS))
+    (user-amount-a (- amount-a tax-a))                  ;; User gets amount minus tax
+    (user-amount-b (- amount-b tax-b))
+  )
+    (begin
+      ;; User receives net amount after tax
+      (try! (transformer .welshcorgicoin user-amount-a tx-sender))
+      (try! (transformer .street user-amount-b tx-sender))
+      
+      ;; Tax is permanently locked in reserves
+      (var-set locked-a (+ lock-a tax-a))
+      (var-set locked-b (+ lock-b tax-b))
+      
+      (ok { burned-lp: amount-lp,
+            tax-a: tax-a,                              ;; Tax amounts recorded
+            tax-b: tax-b,
+            user-a: user-amount-a,
+            user-b: user-amount-b
+      })
+    )
+  )
+)
+```
+
+**Benefit**: Permanently increases liquidity depth, benefiting all WELSH, STREET, and CREDIT LP holders through reduced slippage and improved price stability.
+
+## Maximum Fee Rates & Security
+
+The protocol’s commission is capped at 2% of notional per transaction across fees, revenue and taxes. This ceiling is intentionally conservative relative to traditional finance benchmarks. In U.S. broker-dealer practice, FINRA’s long-standing “5% Policy” (Rule 2121) frames what is fair and reasonable for markups/markdowns and commissions; the 2% Welsh Street Cap sits well below that reference point.
+
+Mutual-fund distribution charges permitted under FINRA Rule 2341 can be materially higher (commonly several percent and up to ~8.5% in certain structures), making a 2% limit comparatively modest.
+
+In the hedge fund world, "2 and 20” is a widely recognized fee model that normalizes a 2% management fee, and retail advisory fees often range up to ~2% of assets for smaller accounts. Taken together, these Wall Street norms support a 2% maximum as prudent, investor-protective, and squarely within established industry practice.
+
+The fees, revenues and taxes are initial set to 1% across the board.  User's can check the rates anytime with the various frontend modals or by directly calling the various read-only functions in the exchange contract.
+
+### Max/Min Parameter Bounds
+
+All fee parameters are protected by minimum and maximum bounds to prevent malicious manipulation. 2% is set that the programmatic maximum, even in the case of a malicious actor gaining access to the deployer private keys.  The lower bound of 0.01% guarantees that the protocol earns minimal revenue to help guarantee protocol sustainability.
+
+### Constants Definition:
+```clarity
+(define-constant BASIS u10000)          ;; 100.00% basis
+(define-constant MAX_FEE u200)          ;; 2.00% maximum
+(define-constant MAX_REV u200)          ;; 2.00% maximum
+(define-constant MAX_TAX u200)          ;; 2.00% maximum
+(define-constant MIN_FEE u1)            ;; 0.01% minimum
+(define-constant MIN_REV u1)            ;; 0.01% minimum
+(define-constant MIN_TAX u1)            ;; 0.01% minimum
+```
+
+### Validation in Update Functions:
+```clarity
+(define-public (update-exchange-fee (update uint))
+  (begin
+    (asserts! (is-eq tx-sender CONTRACT_OWNER) ERR_NOT_CONTRACT_OWNER)
+    (asserts! (<= update MAX_FEE) ERR_ZERO_AMOUNT)     ;; Maximum check
+    (asserts! (>= update MIN_FEE) ERR_ZERO_AMOUNT)     ;; Minimum check
+    (var-set fee update)
+    (ok {fee: update})
+  )
+)
+
+(define-public (update-exchange-rev (update uint))
+  (begin
+    (asserts! (is-eq tx-sender CONTRACT_OWNER) ERR_NOT_CONTRACT_OWNER)
+    (asserts! (<= update MAX_REV) ERR_ZERO_AMOUNT)     ;; Maximum check
+    (asserts! (>= update MIN_REV) ERR_ZERO_AMOUNT)     ;; Minimum check
+    (var-set rev update)
+    (ok {rev: update})
+  )
+)
+
+(define-public (update-exchange-tax (update uint))
+  (begin
+    (asserts! (is-eq tx-sender CONTRACT_OWNER) ERR_NOT_CONTRACT_OWNER)
+    (asserts! (<= update MAX_TAX) ERR_ZERO_AMOUNT)     ;; Maximum check
+    (asserts! (>= update MIN_TAX) ERR_ZERO_AMOUNT)     ;; Minimum check
+    (var-set tax update)
+    (ok {tax: update})
+  )
+)
+```
+
+### Protection Against Attacks:
+
+**Private Key Compromise Scenarios**:
+- **Cannot eliminate fees**: Minimum bounds prevent setting fees to 0, ensuring continued protocol revenue
+- **Cannot drain protocol**: Maximum bounds prevent excessive fee extraction (max 2% per trade)
+- **Cannot stop LP rewards**: Fees automatically flow to rewards contract regardless of treasury compromise
+
+**Current Parameter Ranges**:
+- **Fee**: 0.01% - 2.00% (u1 - u200)
+- **Revenue**: 0.01% - 2.00% (u1 - u200)
+- **Tax**: 0.01% - 2.00% (u1 - u200)
+
+This bounded approach ensures protocol sustainability even in worst-case security scenarios while maintaining reasonable fee structures for users.

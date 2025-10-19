@@ -1,0 +1,153 @@
+# Enhanced Protection with Post-Conditions
+
+## What are Post-Conditions?
+
+In Stacks — Our AMM’s Safety Rails **Post-conditions** are transaction-level assertions enforced by the Stacks runtime **at commit time**. They state what **must** be true about asset movements (who can send or receive how much of which asset). If any post-condition is violated, the **entire transaction aborts** with **no state changes**—no partial swaps, no surprise fees.
+
+> Post-conditions are **not** Clarity code. They are attached to the **signed transaction** and enforced by nodes when the transaction is processed. This lets us keep contract logic **lean** while giving users **hard, chain-native guarantees**.
+
+## How They’re Implemented (Stacks API ↔ Contract Runtime)
+
+- **Client / API (tx building):** The wallet or app constructs the transaction and attaches post-conditions using Stacks SDK helpers (e.g., `makeStandardFungiblePostCondition`, `makeContractFungiblePostCondition`). It broadcasts via the Stacks node API.
+- **Chain / Runtime (enforcement):** When our Clarity `swap` (or similar) executes, the VM tracks real asset deltas for principals mentioned in the post-conditions. At the end, it checks those deltas against our declared bounds. If any bound fails, the transaction **reverts**.
+
+In short: **Clarity executes the swap**; **the Stacks runtime enforces the promises** your transaction makes about asset movements.
+
+## Upper & Lower Bounds Used by Our AMM
+
+We attach **both** lower and upper bounds via post-conditions:
+
+- **User protection (slippage / min-out):**
+  “I will **spend at most** X of token A **and** I must **receive at least** Y of token B.”
+  If the pool’s state would result in less than Y, the tx fails safely.
+
+- **Pool / Exchange protection (anti-windfall / max-out):**
+  “The pool will **not send more than** Z of token B in this trade.”
+  This prevents a single trade from extracting an outsized windfall—which would otherwise be a loss to liquidity providers. Protecting the pool **protects all users** because LPs (users) are the owners of the liquidity pool and the rewards pool.
+
+Because post-conditions live on the transaction, these guardrails **don’t bloat** the contract with extra branching, keeping it **lightweight, gas-efficient, and fast**.
+
+## Worked Example 1 — User Protection After a Massive (Not-Yet-Mined) Move
+
+**Context.** A whale submits a huge swap that is in the mempool, but your quote is based on the **previous** state. You submit your trade right after.
+
+- **Your tx post-conditions** (attached by your wallet):
+  - Spend **≤ 1,000 A** (`LessEqual` on your standard principal for token A)
+  - Pool must send **≥ 480 B** (`GreaterEqual` on the AMM contract principal for token B)
+
+**Two possible outcomes at commit time:**
+
+1. **Whale confirms first → price moves down.**
+   Re-evaluating your tx against the new pool state yields only **430 B** for your 1,000 A.
+   - The “pool sends **≥ 480 B**” condition **fails** → **transaction reverts**.
+   - You keep your A, pay no fees, no partial fills.
+
+2. **Whale confirms after you (or not at all).**
+   The current state still supports ≥ 480 B out.
+   - Both conditions pass → **transaction executes** and you receive at least your promised amount.
+
+**Takeaway:** You never receive a worse-than-agreed price, even if state changes between signing and confirmation.
+
+## Worked Example 2 — Anti-Windfall (Upper Bound on Pool Out)
+
+**Context.** Due to a sudden oracle misread off-chain or a pending arbitrage, your quote could—momentarily—suggest an outsized payout.
+
+- **AMM sets a pool-side post-condition** for swaps routed through the contract:
+  “Pool will **not send more than Z** B for this trade.”
+
+**At commit time:** If executing the swap would require the pool to send **> Z B**, the transaction **reverts**. This avoids a single-trade windfall (which equals an LP loss), preserving the pool for all users.
+
+## Worked Example 3 — Fee Ceiling via Post-Conditions
+
+**Context.** The protocol fee is configured as **2% maximum**. A misconfiguration or upgrade could try to take more.
+
+- **User tx includes a fee-limit post-condition** against the treasury contract principal:
+  “Treasury may receive **≤ F** units for this transaction.”
+
+**At commit time:** If fee transfer would exceed **F**, the post-condition **fails** → **revert**. Users can cap fees independently of UI or contract configuration mistakes.
+
+## SDK Sketch (Attaching Post-Conditions)
+
+> Illustrative; exact types/helpers vary by SDK version.
+
+```ts
+import {
+  makeStandardFungiblePostCondition,
+  makeContractFungiblePostCondition,
+  FungibleConditionCode,           // LessEqual, GreaterEqual
+  createAssetInfo,
+} from '@stacks/transactions';
+
+// Token descriptors
+const tokenA = createAssetInfo('ST...AMMPOOL', 'token-a', 'token-a');
+const tokenB = createAssetInfo('ST...AMMPOOL', 'token-b', 'token-b');
+const pool = { address: 'ST...AMMPOOL', contractName: 'amm-pool' };
+const userAddress = 'ST...USER';
+const treasuryAddress = 'ST...TREASURY';
+
+// User: spend at most X of token A
+const maxInA = makeStandardFungiblePostCondition(
+  userAddress,
+  FungibleConditionCode.LessEqual,
+  X,
+  tokenA
+);
+
+// User: must receive at least Y of token B (pool sends >= Y)
+const minOutB = makeContractFungiblePostCondition(
+  pool.address,
+  pool.contractName,
+  FungibleConditionCode.GreaterEqual,
+  Y,
+  tokenB
+);
+
+// Pool: must not send more than Z of token B (anti-windfall)
+const poolMaxOutB = makeContractFungiblePostCondition(
+  pool.address,
+  pool.contractName,
+  FungibleConditionCode.LessEqual,
+  Z,
+  tokenB
+);
+
+// Treasury fee ceiling: receive <= F (reasonable fee limit)
+const maxFee = makeContractFungiblePostCondition(
+  treasuryAddress,
+  'treasury',
+  FungibleConditionCode.LessEqual,
+  F,
+  tokenB // or tokenA, depending on fee asset
+);
+
+// Attach [maxInA, minOutB, poolMaxOutB, maxFee] to the transaction before broadcast.
+```
+
+## Why Post-Conditions Are a Stacks Superpower (Yes, We’re Proud)
+
+On many chains, “slippage” is just a UI field or ad‑hoc contract logic—extra code paths, higher gas, and more audit surface. **Stacks elevates execution guarantees to the transaction layer**: cryptographically enforced, chain-native, and composable. Builders get **lean, auditable Clarity**; users get **hard, protocol‑level safety rails**.
+
+Our AMM uses **upper + lower bounds** to protect traders **and** LPs, delivering **clean failure instead of bad fills** and keeping our contracts **tight, fast, and resilient**. It’s not just safer—it’s a better developer and user experience.
+
+## Threats & How Post-Conditions Help
+
+- **MEV Sandwiching:**
+  If front/back-running pushes price outside your declared bounds, your min‑out / max‑in conditions fail. No toxic fill.
+
+- **Extreme Market Conditions (spikes, liquidity shocks):**
+  Rapid swings can’t slip your fill beyond what you allowed. The tx either meets your bounds or safely reverts.
+
+- **Slippage Protection:**
+  Encoded directly as post-conditions (“spend ≤ X”, “receive ≥ Y”), enforced by the chain—stronger than UI-only checks.
+
+- **Reasonable Fee Limits:**
+  Cap what the treasury/fee contract can collect per tx. If a misconfig would exceed that cap, the tx reverts.
+
+## Design Benefits for the AMM
+
+- **Less on-chain code:** Fewer branches and state checks → **smaller attack surface**.
+- **Lower gas:** Guarantees move out of contract logic into the tx layer.
+- **Faster execution:** Simple, predictable paths in Clarity.
+- **Better UX:** Users and LPs get deterministic, enforceable bounds on price, payout, and fees.
+
+**Bottom line:** Post-conditions keep our AMM **safe by default** while remaining **lightweight, gas-efficient, and fast**—a distinctive advantage of Clarity and the Stacks transaction model.

@@ -1,0 +1,166 @@
+# Credit
+
+## Overview: Activating the Welsh Economic Flywheel
+
+CREDIT is the **liquidity provider (LP) token** of Welsh Street Exchange - a tradable SIP-010 fungible token that represents proportional ownership in the WELSH/STREET liquidity pool. As the **key component** in solving WELSH's economic isolation problem, CREDIT enables the secondary markets and speculation opportunities that create the continuous economic activity missing from traditional community coins.
+
+Unlike many Stacks DEXs that use internal accounting or NFT positions, Welsh Street issues **transferable LP tokens** specifically designed to **activate Phase 3 of the Welsh Economic Flywheel** - where CREDIT secondary markets drive sustained economic growth for the entire WELSH ecosystem.
+
+## Innovative LP Token Design
+
+Welsh Street introduces a **Uniswap V2/SushiSwap-style LP token model** to Stacks - the first of its kind in the ecosystem. This design choice creates significant advantages over existing Stacks exchanges:
+
+**Key Innovation**: **Tradable, composable LP tokens** vs. internal balance tracking used by other Stacks DEXs.
+
+## SIP-010 Compliance & Transferability
+
+CREDIT tokens are fully **SIP-010 compliant**, making them:
+- **Transferable** between any Stacks addresses
+- **Tradable** on secondary markets
+- **Composable** with other DeFi protocols
+- **Stakeable** in future governance systems
+- **Collateralizable** in lending protocols
+
+```clarity
+;; CREDIT implements standard SIP-010 interface
+(impl-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard.sip-010-trait)
+
+;; Standard transfer function - fully transferable
+(define-public (transfer
+    (amount uint)
+    (sender principal)
+    (recipient principal)
+    (memo (optional (buff 34)))
+  )
+  ;; Standard SIP-010 transfer implementation
+```
+
+## Bulletproof Security Architecture
+
+The CREDIT contract implements **contract-caller authorization** to prevent deployer manipulation while maintaining AMM functionality:
+
+```clarity
+;; MINT FUNCTION - EXCHANGE CONTRACT ONLY
+(define-public (mint (amount uint))
+    (begin
+      (asserts! (> amount u0) ERR_ZERO_AMOUNT)
+      (asserts! (is-eq contract-caller .exchange) ERR_NOT_CONTRACT_OWNER) ;; 🔒 CRITICAL SECURITY
+      (try! (ft-mint? credit amount tx-sender))
+      (ok {minted: amount})
+    )
+)
+
+;; BURN FUNCTION - EXCHANGE CONTRACT ONLY
+(define-public (burn (amount uint))
+    (begin
+      (asserts! (> amount u0) ERR_ZERO_AMOUNT)
+      (asserts! (is-eq contract-caller .exchange) ERR_NOT_CONTRACT_OWNER) ;; 🔒 CRITICAL SECURITY
+      (try! (ft-burn? credit amount tx-sender))
+      (ok {burned: amount})
+    )
+)
+```
+
+**Security Features**:
+- ✅ **Contract-Caller Authorization**: Only `.exchange` contract can mint/burn CREDIT
+- ✅ **Deployer Protection**: Admin cannot directly manipulate CREDIT supply
+- ✅ **Immutable Logic**: No functions can be added/modified post-deployment
+- ✅ **Legitimate Operations Only**: Supply changes only through proper LP provision/removal
+
+## Welsh Street vs. Other Stacks DEXs
+
+## **Welsh Street Model: Tradable SIP-010 LP Tokens**
+
+```
+WELSH + STREET → [Pool Contract] → Issues CREDIT Token (SIP-010)
+                                        ↓
+                                 Tradable, Composable Asset
+```
+
+**Features**:
+- **Secondary Markets**: LP tokens can be traded independently
+- **Speculation Layer**: Users can speculate on LP token value
+- **DeFi Composability**: LP tokens work with other protocols
+- **Transparent Ownership**: Clear tokenized representation of liquidity shares
+
+## **Other Stacks DEXs: Internal Accounting Models**
+
+Examples: **Velar, Alex, BitFlow**
+
+```
+Multiple Tokens → [Central Pool Contract]
+                         ↓
+                Internal Balances or NFT Positions (Non-tradable)
+```
+
+**Limitations**:
+- ❌ **No Secondary Markets**: LP positions cannot be traded
+- ❌ **Limited Composability**: Other protocols can't integrate LP shares
+- ❌ **Withdrawal Only**: Users must exit positions to realize value
+
+## LP Token Economics
+
+## **Value Accrual Mechanisms**
+
+1. **Trading Fee Accumulation**: CREDIT holders earn from every swap through reserve growth
+2. **Emission Rewards**: STREET token rewards distributed to CREDIT holders
+3. **Withdrawal Tax Benefits**: Taxes from LP withdrawals permanently increase reserve backing
+4. **Burn Appreciation**: `burn-liquidity` calls increase CREDIT value by reducing supply
+
+## **Mathematical Fair Share**
+
+```clarity
+// Each CREDIT token represents proportional ownership
+user_share = (user_credit_balance / total_credit_supply) * pool_reserves
+```
+
+When users redeem CREDIT tokens, they receive their proportional share of **both** WELSH and STREET reserves plus any accumulated fees.
+
+## Strategic Advantages
+
+## **1. Capital Efficiency**
+- LP tokens can be used as collateral while still earning fees
+- Secondary markets provide liquidity without withdrawing from pools
+- Composability with lending/borrowing protocols
+
+## **2. Market Making Innovation**
+- Professional market makers can accumulate LP tokens
+- Institutional investors can hold LP positions long-term
+- Arbitrageurs can trade LP tokens based on pool performance
+
+## **3. Future Governance Integration**
+- CREDIT holders could vote on protocol parameters
+- Staking mechanisms for additional rewards
+- DAO treasury could hold LP tokens for protocol-owned liquidity
+
+## Technical Specifications
+
+**Token Standard**: SIP-010 Fungible Token
+**Symbol**: CREDIT
+**Decimals**: 6 (micro-precision matching underlying assets)
+**Supply**: Dynamic (minted/burned with liquidity operations)
+**Transferability**: Fully transferable between any principals
+**Integration**: Compatible with all SIP-010 supporting protocols
+
+## Ecosystem Impact
+
+Welsh Street's tradable LP token model **transforms liquidity provision** from a binary (in/out) decision to a **continuous spectrum of strategies**:
+
+1. **Hold for Yield**: Traditional LP strategy earning fees + emissions
+2. **Trade LP Tokens**: Speculate on pool performance without withdrawing
+3. **Use as Collateral**: Borrow against LP positions while earning
+4. **Market Making**: Professional strategies with LP token inventory
+5. **Protocol Integration**: LP tokens as governance or staking assets
+
+## Security Analysis Summary
+
+**✅ Robust Protection Against Manipulation**
+
+The CREDIT contract's security model ensures:
+
+- **Proper Authorization**: Only exchange contract can mint/burn tokens
+- **Contract Immutability**: No malicious functions can be added post-deployment
+- **Limited Admin Privileges**: Deployer cannot bypass authorization checks
+- **Legitimate Operations Only**: Supply changes only through proper AMM functions
+
+This design **prevents arbitrary manipulation** while maintaining full AMM functionality and enabling the innovative tradable LP token model that **solves WELSH's economic isolation** by creating secondary markets and expanding utility beyond simple holding - exactly what the Welsh economy needed to achieve sustainable growth.

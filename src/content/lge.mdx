@@ -1,0 +1,188 @@
+# Liquidity Generation Event
+
+## Summary
+
+The **Liquidity Generation Event (LGE)** is the **genesis phase** of the Welsh Street Exchange ecosystem.
+It distributes **20,000,000 STREET tokens** to early participants who contribute **WELSH** to the on-chain **genesis contract** during a two-week event window.
+
+- **Duration:** 14 days
+- **Contribution asset:** WELSH
+- **Contract:** Secure on-chain genesis contract
+- **Distribution:** 20,000,000 STREET tokens allocated pro-rata
+- **Refunds:** **None.** All contributions are final.
+- **Liquidity:** None created during LGE (no LP tokens minted).
+- **Airdrop:** STREET tokens distributed manually within ~1 week after close.
+
+---
+
+## Overview
+
+During the two-week LGE window, participants send **WELSH tokens** to the **genesis contract address**.
+Each transfer updates a **data map** stored on-chain that tracks total contributions per user.
+
+At the end of the event:
+- The contract is closed.
+- Final totals are recorded on-chain.
+- STREET tokens are distributed via a **manual airdrop** approximately one week after the event concludes, based on each participant’s share of total WELSH contributed.
+
+### No Refunds
+
+All contributions are **non-refundable**.
+Participants permanently exchange their contributed WELSH for their corresponding allocation of STREET, which will be airdropped after the event ends.
+
+---
+
+## Mechanics
+
+### 1. Contribution Window
+- The event runs for **14 consecutive days**.
+- Users may contribute **multiple times**; each new contribution adds to their cumulative total.
+- Contributions are accepted only in **WELSH** via the genesis contract.
+
+### 2. On-Chain Data (Source of Truth)
+- The contract records:
+- A **list of participant principals**.
+- A **map of cumulative WELSH totals** per principal.
+- These on-chain records are the **sole source** for the final airdrop calculations.
+
+### 3. Off-Chain Data (UX Only)
+- An off-chain database mirrors on-chain events to power:
+- Progress bars and contribution charts.
+- Leaderboards and metadata (wallet nickname, timestamp, etc.).
+- **Only users who contribute through the frontend** have their metadata recorded (wallet name, timestamp, country flag, etc.).
+- **Direct contract interactions** (via CLI, API, or Stacks Explorer) are **still valid** and fully credited in the final airdrop,
+but **their metadata will not appear** in the frontend display.
+
+
+## Distribution Phase
+
+After the 14-day window:
+1. The genesis contract is closed.
+2. Final contribution totals are exported from the blockchain.
+3. **STREET tokens are airdropped** to participant addresses **within approximately one week**.
+4. Airdrops are based entirely on **on-chain totals** recorded by the genesis contract.
+
+> ⚠️ There is **no liquidity pool** created during this event.
+> **No LP tokens** are minted or distributed.
+> Liquidity seeding, if any, occurs separately after the LGE.
+
+---
+
+## Metadata & Privacy
+
+| Method | On-Chain Record | Off-Chain Metadata | Displayed in Frontend |
+|---------|------------------|--------------------|-----------------------|
+| **Frontend (App)** | ✅ Contribution total | ✅ Wallet, timestamp, country flag | ✅ Yes |
+| **Direct Contract Call (CLI/Explorer)** | ✅ Contribution total | ❌ None recorded | ❌ No |
+
+All allocations are based solely on on-chain totals, regardless of frontend tracking.
+
+---
+
+## Security & Transparency
+
+- **Immutable ledger:** Every contribution and wallet is verifiable on-chain.
+- **Non-custodial:** Funds are held by the contract, not a team wallet.
+- **Transparent airdrop:** The airdrop list and total allocations are public and verifiable.
+- **Frontend optional:** On-chain contributions always count.
+
+---
+
+## Core Principles
+
+1. **Fair Launch:**
+ Every contributor participates under the same conditions. There are no pre-sales or private allocations.
+
+2. **Transparency:**
+ All contributions are recorded on-chain and viewable by anyone.
+
+3. **Fixed STREET Supply:**
+ Exactly 20,000,000 STREET are distributed through the LGE—no more, no less.
+
+4. **Flexible Liquidity Ratio:**
+ The 1:100 ratio between STREET and WELSH is a target, not a rule.
+ The deployer may adjust this ratio at the time of liquidity deployment to reflect actual conditions.
+
+5. **Community Participation:**
+ Major allocation choices (e.g., surplus or rewards handling) will be shared and discussed publicly through official Welsh Street social channels such as **X**.
+
+---
+
+## Market Adjustment & Liquidity Allocation Policy
+
+Because the LGE runs for two weeks, the market price of **WELSH** may change significantly during the event.
+To handle both **over-subscription** and **under-subscription** fairly, the following framework applies:
+
+1. **Fixed STREET Allocation**
+ The total of **20,000,000 STREET** distributed to participants does not change, regardless of market movements or total WELSH raised.
+
+2. **Adjustable Liquidity Ratio**
+ The **1 : 100** ratio between STREET and WELSH is **not hard-coded**.
+ After the LGE ends, the deployer will apply the initial liquidity manually and may adjust this ratio to reflect actual market conditions and the total WELSH raised.
+
+---
+
+### Oversubscription Scenario (More than 20 M WELSH Raised)
+
+When more WELSH is raised than the target (for example, 30 M WELSH):
+
+- The deployer may use **more WELSH** in the liquidity pool (e.g., 30 M WELSH + 2 B STREET) to strengthen market depth.
+- Any **excess WELSH** not used in the pool may be:
+- Allocated to the **Rewards Contract**, distributed slowly over time to LP token holders, or
+- Directed to the **Treasury**, where it can be used for buybacks, additional liquidity, or community rewards.
+- The allocation decision will be announced **publicly on official channels (e.g., X)**, and community sentiment may be measured through polls.
+
+**Possible Treasury Scenario:**
+If **1,000,000,000 STREET** are earmarked for treasury use, the over-subscribed WELSH can pair with those tokens for future buybacks, more locked liquidity, or LP rewards.
+
+---
+
+### Undersubscription Scenario (Less than 20 M WELSH Raised)
+
+If less WELSH is raised than expected:
+
+- All participants still receive their full share of the **20,000,000 STREET allocation**, which means each WELSH contributed earns **more STREET**.
+- The deployer may add **private WELSH funds** to reach the target pool ratio, or
+- Proceed with a smaller WELSH pool, allowing the market to find a new equilibrium naturally.
+
+Undersubscription effectively rewards early supporters with a larger proportional STREET claim.
+
+---
+
+## Fairness Mechanisms
+
+| Concern | Mechanism | Who Decides | Transparency |
+|----------|------------|-------------|---------------|
+| Oversubscription | Add extra WELSH to pool, or send to Rewards/Treasury | Deployer, with community input | Public announcement or X poll |
+| Undersubscription | Add private WELSH to meet ratio or launch with smaller pool | Deployer | Public post-launch report |
+| Reward pacing | Gradual release to LPs to prevent early drain | Deployer | Schedule announced in docs/X |
+| Treasury use | Buybacks, added liquidity, or reward funding | Deployer, with community feedback | Publicly shared reasoning |
+| Liquidity ratio | Adjusted at launch for stability | Deployer | On-chain record at pool creation |
+
+---
+
+## Deployer Authority Window
+
+- The deployer retains full discretion for up to **30 days after the LGE closes** to:
+- Create the liquidity pool and finalize the ratio.
+- Allocate oversubscription or manage deficits.
+- Establish the initial LP reward schedule.
+- After this period, major future actions (buybacks, reward adjustments, liquidity additions) will be shared publicly and may be preceded by **informal community votes via official Welsh Street channels** such as **X**.
+
+---
+
+## TL;DR
+
+| Parameter | Description |
+|------------|--------------|
+| Duration | 14 days |
+| Contribution | WELSH only |
+| Refunds | None (final) |
+| Distribution | 20,000,000 STREET, proportional to WELSH share |
+| Delivery | Airdrop within ~1 week after close |
+| Liquidity Ratio | Adjustable by deployer |
+| Oversubscription | Surplus WELSH may go to rewards or treasury |
+| Undersubscription | Deployer may add private WELSH |
+| Governance | Community votes via X (no governance contract) |
+| Frontend Tracking | Optional (adds metadata only) |
+| Direct Contract Calls | Fully valid but not displayed in UX |
